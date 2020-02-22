@@ -89,6 +89,11 @@ class Bin:
         fit = False
         valid_item_position = item.position
         item.position = pivot
+
+        if self.get_total_weight() + item.weight > self.max_weight:
+            fit = False
+            return fit
+
         for i in range(0, len(RotationType.ALL)):
             item.rotation_type = i
             d = item.get_dimension()
@@ -107,9 +112,6 @@ class Bin:
                     break
 
             if fit:
-                if self.get_total_weight() + item.weight > self.max_weight:
-                    fit = False
-                    return fit
                 self.items.append(item)
 
             if not fit:
@@ -141,6 +143,7 @@ class Packer:
             return
         self.unfit_items.append(self.items[0])
         self.items = self.items[1:]
+        pass
 
     def find_fitted_bin(self, item):
         for b in self.bins:
@@ -161,17 +164,23 @@ class Packer:
 
         return None
 
-    def pack_to_bin(self, bin, items):
+    def pack_to_bin(self, bin):
         unpacked = []
-        fitted = bin.put_item(items[0], START_POSITION)
-        if not fitted:
+        fitted = bin.put_item(self.items[0], START_POSITION)
+        if fitted:
+            self.items = self.items[1:]
+        else:
             bin2 = self.get_bigger_bin_than(bin)
             if bin2 is not None:
-                return self.pack_to_bin(bin2, items)
+                return self.pack_to_bin(bin2)
             return self.items
 
-        for i in items[1:]:
+        for i in self.items:
             fitted = False
+
+            if bin.get_total_weight() + i.weight > bin.max_weight:
+                continue
+
             for pt in range(0, len(Axis.ALL)):
                 for ib in bin.items:
                     pv = [0, 0, 0]
@@ -195,23 +204,25 @@ class Packer:
                         ]
 
                     if bin.put_item(i, pv):
+                        print(bin.string(), i.string())
                         fitted = True
                         break
 
             if not fitted:
                 bin2 = self.get_bigger_bin_than(bin)
                 while bin2 is not None:
-                    left = self.pack_to_bin(bin2, bin2.items.append(i))
-                    if len(left) == 0:
-                        bin = bin2
+                    # bin2.items.append(i)
+                    self.items = self.pack_to_bin(bin2)
+                    if len(self.items) == 0:
+                        # bin = bin2
                         fitted = True
                         break
-                    bin2 = self.get_bigger_bin_than(bin)
+                    bin2 = self.get_bigger_bin_than(bin2)
 
                 if not fitted:
                     unpacked.append(i)
 
-        return unpacked
+        return self.items
 
     def pack(self, bigger_first=False):
         self.bins.sort(key=lambda x: x.get_volume(), reverse=bigger_first)
@@ -222,9 +233,10 @@ class Packer:
             if bin is None:
                 self.unfit_item()
                 continue
-
-            self.items = self.pack_to_bin(bin, self.items)
-
+            print(len(self.items))
+            self.items = self.pack_to_bin(bin)
+            print(len(self.items))
+            pass
         return None
 
     def fitted_all(self):
